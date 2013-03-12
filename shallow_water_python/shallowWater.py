@@ -13,7 +13,7 @@ import pylab as pl
 ######################################################
 
 # Courant Friedrichs Levy condition (CFL) is a necessary condition for convergence
-CFL = #???# set so it fulfilles CFL condition, experiment with it
+CFL = .5# set so it fulfilles CFL condition, experiment with it
 # gravitational constant
 g = 9.80665
 
@@ -23,7 +23,7 @@ def shallowWater(n,XMAX,TMAX):
     # dx = cell size
     dx = 1.*XMAX/n
     # x = cell center
-    x = #???# set to be cell centers
+    x = range(dx/2, XMAX, dx)# set to be cell centers
     # initialize height h and momentum hu
     h, hu = initialize(x,XMAX)
 
@@ -49,7 +49,7 @@ def shallowWater(n,XMAX,TMAX):
         # calculate fluxes at cell interfaces and largest eigenvalue
         fhp, fhup, eigp = fluxes(h[1:],hu[1:])
         fhm, fhum, eigm = fluxes(h[:-1],hu[:-1])
-        maxeig = #???# maximum of eigp and eigm
+        maxeig = max(eigp, eigm)# maximum of eigp and eigm
 
         # calculate time step according to CFL-condition
         dt = calculateDt(dx,maxeig,tsum,TMAX)
@@ -98,10 +98,15 @@ def addGhostCells(var):
     return np.hstack([0.,var,0.])
 
 def neumannBoundaryConditions(var):
-    return #???# var with neumann boundary conditions
+    var[0] = var[1]
+    var[-1] = var[-2]
+    return var # var with neumann boundary conditions
 
 def periodicBoundaryConditions(var):
-    return #???# var with periodic boundary conditions
+    tmp = var[0]
+    var[0] = var[-1]
+    var[0] = tmp
+    return var # var with periodic boundary conditions
 
 def calculateDt(dx,maxeig,tsum,TMAX):
     return #???# stepsize dtdt
