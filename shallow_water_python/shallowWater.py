@@ -13,7 +13,7 @@ import pylab as pl
 ######################################################
 
 # Courant Friedrichs Levy condition (CFL) is a necessary condition for convergence
-CFL = .5# set so it fulfilles CFL condition, experiment with it
+CFL = .25# set so it fulfilles CFL condition, experiment with it
 # gravitational constant
 g = 9.80665
 
@@ -23,7 +23,7 @@ def shallowWater(n,XMAX,TMAX):
     # dx = cell size
     dx = 1.*XMAX/n
     # x = cell center
-    x = range(dx/2, XMAX, dx)# set to be cell centers
+    x = np.arange(dx/2, XMAX, dx)# set to be cell centers
     # initialize height h and momentum hu
     h, hu = initialize(x,XMAX)
 
@@ -49,7 +49,7 @@ def shallowWater(n,XMAX,TMAX):
         # calculate fluxes at cell interfaces and largest eigenvalue
         fhp, fhup, eigp = fluxes(h[1:],hu[1:])
         fhm, fhum, eigm = fluxes(h[:-1],hu[:-1])
-        maxeig = max(eigp, eigm)# maximum of eigp and eigm
+        maxeig = np.maximum(eigp, eigm)# maximum of eigp and eigm
 
         # calculate time step according to CFL-condition
         dt = calculateDt(dx,maxeig,tsum,TMAX)
@@ -60,10 +60,9 @@ def shallowWater(n,XMAX,TMAX):
         # R = Lax-Friedrichs Flux
         Rh = LxFflux(h,fhp, fhm, lambd)
         Rhu = LxFflux(hu, fhup, fhum, lambd)
-
-        
-        h[1:-1] #???# update cell average (tip: depends on Rh and lambda)
-        hu[1:-1] #???# update cell average (tip: depends on Rhu and lambda)
+        print Rhu[np.floor(n / 3):n - np.floor(n / 3)]
+        h[1:-1] -= lambd * .5 *(Rh[:-1] - Rh[1:])# update cell average (tip: depends on Rh and lambda)
+        hu[1:-1] -= lambd * .5 *(Rhu[:-1] - Rhu[1:])# update cell average (tip: depends on Rhu and lambda)
         plotVars(x,h,hu,tsum)
 
     #end while (time loop)
@@ -103,24 +102,34 @@ def neumannBoundaryConditions(var):
     return var # var with neumann boundary conditions
 
 def periodicBoundaryConditions(var):
-    tmp = var[0]
-    var[0] = var[-1]
-    var[0] = tmp
+    var[0] = var[-2]
+    var[-1] = var[1] 
     return var # var with periodic boundary conditions
 
 def calculateDt(dx,maxeig,tsum,TMAX):
-    return #???# stepsize dtdt
+	dt = dx/maxeig
+	if tsum + dt > TMAX:
+		dt = TMAX - tsum
+
+	return dt #stepsize dtdt
 
 def fluxes(h,hu):
     fh,fhu,lambd1,lambd2 = fluxAndLambda(h,hu)
-    maxeig = #???# calculate largest eigenvalue
+    maxeig = np.maximum(np.amax(lambd1), np.amax(lambd2))# calculate largest eigenvalue
     return fh, fhu, maxeig
 
-def LxFflux(q, fqm, fqp, lambd):
-    return #???# Lax-Friedrichs Flux
+def LxFflux(q, fqp, fqm, lambd):
+	LxF = .5 * (q[:-1] + q[1:]) - .5 * lambd * (fqm - fqp)
+	return LxF # Lax-Friedrichs Flux
 
 def fluxAndLambda(h,hu):
-    return #???# fluxes fh and fhu and eigenvalues lambda1, lambda2
+	u = hu/h
+	fh = hu
+	fhu = h*u*u + .5*g*h*h
+	lambda1 = u + np.sqrt(g*h)
+	lambda2 = u - np.sqrt(g*h)
+	#fluxes fh and fhu and eigenvalues lambda1, lambda2
+	return fh, fhu, lambda1, lambda2
 
 if __name__ == "__main__":
 
