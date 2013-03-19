@@ -60,9 +60,9 @@ def shallowWater(n,XMAX,TMAX):
         # R = Lax-Friedrichs Flux
         Rh = LxFflux(h,fhp, fhm, lambd)
         Rhu = LxFflux(hu, fhup, fhum, lambd)
-        print Rhu[np.floor(n / 3):n - np.floor(n / 3)]
-        h[1:-1] -= lambd * .5 *(Rh[:-1] - Rh[1:])# update cell average (tip: depends on Rh and lambda)
-        hu[1:-1] -= lambd * .5 *(Rhu[:-1] - Rhu[1:])# update cell average (tip: depends on Rhu and lambda)
+
+        h[1:-1] -= lambd * (Rh[1:] - Rh[:-1])# update cell average (tip: depends on Rh and lambda)
+        hu[1:-1] -= lambd * (Rhu[1:] - Rhu[:-1])# update cell average (tip: depends on Rhu and lambda)
         plotVars(x,h,hu,tsum)
 
     #end while (time loop)
@@ -119,7 +119,7 @@ def fluxes(h,hu):
     return fh, fhu, maxeig
 
 def LxFflux(q, fqp, fqm, lambd):
-	LxF = .5 * (q[:-1] + q[1:]) - .5 * lambd * (fqm - fqp)
+	LxF = .5 * (fqm + fqp) - .5 / lambd * (q[1:] - q[:-1])
 	return LxF # Lax-Friedrichs Flux
 
 def fluxAndLambda(h,hu):
