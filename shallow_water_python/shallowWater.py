@@ -13,13 +13,15 @@ import pylab as pl
 ######################################################
 
 # Courant Friedrichs Levy condition (CFL) is a necessary condition for convergence
-CFL = .25# set so it fulfilles CFL condition, experiment with it
+CFL = .5# set so it fulfilles CFL condition, experiment with it
 # gravitational constant
 g = 9.80665
 
 ## shallow water solver 1 dimension
 def shallowWater(n,XMAX,TMAX):
-
+	
+    TMAX *= XMAX
+	
     # dx = cell size
     dx = 1.*XMAX/n
     # x = cell center
@@ -87,8 +89,8 @@ def plotVars(x,h,hu,time):
 def initialize(x,XMAX):
     # initialize water height with two peaks
     c = 0.01
-    h = .5 + .5*np.exp(-(x-.6*XMAX)**2/(2*c**2))
-    h += np.exp(-(x-.4*XMAX)**2/(2*c**2))
+    h = .5 + .5*np.exp(-(2.*(x/XMAX-.6))**2/(2.*c**2))
+    h += np.exp(-(2.*(x/XMAX-.4))**2/(2.*c**2))
     # momentum is zero
     hu = 0.*x
     return h, hu
@@ -125,7 +127,7 @@ def LxFflux(q, fqp, fqm, lambd):
 def fluxAndLambda(h,hu):
 	u = hu/h
 	fh = hu
-	fhu = h*u*u + .5*g*h*h
+	fhu = hu*u + .5*g*h*h
 	lambda1 = u + np.sqrt(g*h)
 	lambda2 = u - np.sqrt(g*h)
 	#fluxes fh and fhu and eigenvalues lambda1, lambda2
