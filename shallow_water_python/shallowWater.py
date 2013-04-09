@@ -13,7 +13,7 @@ import pylab as pl
 ######################################################
 
 # Courant Friedrichs Levy condition (CFL) is a necessary condition for convergence
-CFL = .5# set so it fulfilles CFL condition, experiment with it
+CFL = .99# set so it fulfilles CFL condition, experiment with it
 # gravitational constant
 g = 9.80665
 
@@ -32,13 +32,14 @@ def shallowWater(n,XMAX,TMAX):
     # add ghost cells
     h = addGhostCells(h)
     hu = addGhostCells(hu)
-
     # plot initial conditions with interactive mode on
     pl.ion()
     plotVars(x,h,hu,0)
 
     # time starts at zero
     tsum=0.
+    saveToFile(h,tsum,n,'result.dat','w')
+    saveToFile(hu,tsum,n,'result.dat','a')
     # loop over time
     while tsum<TMAX:
 
@@ -65,15 +66,17 @@ def shallowWater(n,XMAX,TMAX):
 
         h[1:-1] -= lambd * (Rh[1:] - Rh[:-1])# update cell average (tip: depends on Rh and lambda)
         hu[1:-1] -= lambd * (Rhu[1:] - Rhu[:-1])# update cell average (tip: depends on Rhu and lambda)
-        plotVars(x,h,hu,tsum)
+    plotVars(x,h,hu,tsum)
 
     #end while (time loop)
+    saveToFile(h,tsum,n,'result.dat','a')
+    saveToFile(hu,tsum,n,'result.dat','a')
 
-
-def plotVars(x,h,hu,time):
+def plotVars(x,h,hu,time,clear=True):
     time = '{0:.5f}'.format(time)
     pl.figure(1)
-    pl.clf()
+    if clear:
+        pl.clf()
     pl.subplot(211)
     pl.title('water height h(t='+time+')')
     pl.plot(x,h[1:-1],label='u')
@@ -86,6 +89,60 @@ def plotVars(x,h,hu,time):
     pl.legend()
     pl.draw()
 
+def saveToFile(v,t,n,name,mode):
+# mode 'w' (over)writes, 'a' appends
+    v = np.hstack([t,CFL,g,n+2,v]) # +2 because of ghost cells
+    ff = open(name, mode+'b')
+    v.tofile(ff)
+    ff.close()
+    
+def readFromFile(name,clear=True):
+    ff = open(name, 'rb')
+    data = np.fromfile(ff)
+    print "read print", data.size
+    ff.close()
+    numberCells = data[3]
+    n = numberCells-2 # -2 because of ghost cells
+    numberParameters = 4 # t, CFL, g, n
+    numberVariables = 2 # h,hu
+    print name, data.size
+    if data.size%(numberCells+numberParameters)*numberVariables==0:
+        numberSavedTimeSteps = data.size/((numberCells+numberParameters)*numberVariables)
+        data.shape = (numberVariables*numberSavedTimeSteps,(numberCells+numberParameters))
+        # plot the last time step
+        pl.ion()
+        plotVars((1./2. + np.arange(n))/n, data[-2,numberParameters:], data[-1,numberParameters:], data[-1,0], clear)
+    else:
+        print 'data file inconsistent'
+    return data
+
+def error(name,nameReference):
+    data = readFromFile(name,True)
+    dataRef = readFromFile(nameReference,False)
+    numberParameters = 4 # t, CFL, g, n
+    h = data[-2,numberParameters+1:-1]
+    hu = data[-1,numberParameters+1:-1]
+    h_ref = dataRef[-2,numberParameters+1:-1]
+    hu_ref = dataRef[-1,numberParameters+1:-1]
+
+    numberCells = data[0,3]
+    if (numberCells != dataRef[0,3]):
+        print 'solution and reference solution have different number of grid cells'
+    else:
+        n = numberCells-2 # -2 because of ghost cells
+        time = data[-1,0]
+        timeRef = dataRef[-1,0]
+        if time==timeRef:
+            relErrorh = np.sum(np.abs(h-h_ref))/np.sum(np.abs(h_ref))
+            absErrorhu = np.sum(np.abs(h-h_ref))/(1.*n)
+            time = '{0:.5f}'.format(time)
+            relErrorh = '{0:.5f}'.format(relErrorh*100.)
+            absErrorhu = '{0:.5f}'.format(absErrorhu*100.)
+            print 'relative L1-error of water height h(t='+time+') is '+relErrorh+'%'
+            print 'absolute L1-error of momentum hu(t='+time+') is '+absErrorhu+'%'
+        else:
+            print 'cannot compare solution at different times'
+	
 def initialize(x,XMAX):
     # initialize water height with two peaks
     c = 0.01
@@ -109,7 +166,7 @@ def periodicBoundaryConditions(var):
     return var # var with periodic boundary conditions
 
 def calculateDt(dx,maxeig,tsum,TMAX):
-	dt = dx/maxeig
+	dt = CFL*dx/maxeig
 	if tsum + dt > TMAX:
 		dt = TMAX - tsum
 
@@ -156,4 +213,5 @@ if __name__ == "__main__":
         TMAX = opts.TMAX
 
     shallowWater(n,XMAX,TMAX)
+    error('result.dat', 'result_n1000_TMAX045.dat')
 
