@@ -1,11 +1,13 @@
+from mpl_toolkits.mplot3d import axes3d
 import numpy as np
 import pylab as pl
+import matplotlib.pyplot as plt
 
 ######################################################
 ## - usage from command line:                        #
 ##     python shallowWater.py --n=1000 --TMAX=0.05   #
 ##     (where:                                       #
-##     n = number of grid cells                      #
+##     n = number of grid cells, in each direction   #
 ##     TMAX = end time simulation)                   #
 ## - usage from within ipython:                      #
 ##     from shallowWater import *                    #
@@ -19,27 +21,32 @@ g = 9.80665
 
 ## shallow water solver 1 dimension
 def shallowWater(n,XMAX,TMAX):
-	
+    
     TMAX *= XMAX
-	
+    
     # dx = cell size
     dx = 1.*XMAX/n
     # x = cell center
     x = np.arange(dx/2, XMAX, dx)# set to be cell centers
+    y = np.reshape(x, (x.size, -1))
+    
     # initialize height h and momentum hu
-    h, hu = initialize(x,XMAX)
+    h, hu, hv = initialize(x,y,XMAX)
 
-    # add ghost cells
+    # add ghost cells (aka frame the array in zeroes)
     h = addGhostCells(h)
     hu = addGhostCells(hu)
+    hv = addGhostCells(hv)
     # plot initial conditions with interactive mode on
-    pl.ion()
-    plotVars(x,h,hu,0)
-
+    #pl.ion()
+    #plotVars(x,h,hu,0)
+    mX, mY = init3dPlot(x,y,XMAX,dx)
+    plot3d(mX,mY,h,n)
+    return
     # time starts at zero
     tsum=0.
-    saveToFile(h,tsum,n,'result.dat','w')
-    saveToFile(hu,tsum,n,'result.dat','a')
+    #saveToFile(h,tsum,n,'result.dat','w')
+    #saveToFile(hu,tsum,n,'result.dat','a')
     # loop over time
     while tsum<TMAX:
 
@@ -48,7 +55,7 @@ def shallowWater(n,XMAX,TMAX):
         hu = neumannBoundaryConditions(hu)
         #h = periodicBoundaryConditions(h)
         #hu = periodicBoundaryConditions(hu)
-
+        return #code not readt beyond this point
         # calculate fluxes at cell interfaces and largest eigenvalue
         fhp, fhup, eigp = fluxes(h[1:],hu[1:])
         fhm, fhum, eigm = fluxes(h[:-1],hu[:-1])
@@ -66,11 +73,11 @@ def shallowWater(n,XMAX,TMAX):
 
         h[1:-1] -= lambd * (Rh[1:] - Rh[:-1])# update cell average (tip: depends on Rh and lambda)
         hu[1:-1] -= lambd * (Rhu[1:] - Rhu[:-1])# update cell average (tip: depends on Rhu and lambda)
-    plotVars(x,h,hu,tsum)
+        plotVars(x,h,hu,tsum)
 
     #end while (time loop)
-    saveToFile(h,tsum,n,'result.dat','a')
-    saveToFile(hu,tsum,n,'result.dat','a')
+    #saveToFile(h,tsum,n,'result.dat','a')
+    #saveToFile(hu,tsum,n,'result.dat','a')
 
 def plotVars(x,h,hu,time,clear=True):
     time = '{0:.5f}'.format(time)
@@ -88,6 +95,20 @@ def plotVars(x,h,hu,time,clear=True):
     pl.xlabel('x')
     pl.legend()
     pl.draw()
+
+def init3dPlot(x,y,XMAX,dx):
+    xplot = np.hstack([-dx/2, x, XMAX + dx/2])
+    yplot = np.vstack([[-dx/2], y, [XMAX + dx/2]])
+    mX, mY = np.meshgrid(xplot,yplot)
+    return mX, mY
+
+def plot3d(mX,mY,h,n):
+    fig = plt.figure()
+    plt.cla();
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot_wireframe(mX, mY, h, rstride=n/25, cstride=n/25)
+    ax.view_init(50, -125)
+    plt.show()
 
 def saveToFile(v,t,n,name,mode):
 # mode 'w' (over)writes, 'a' appends
@@ -142,35 +163,49 @@ def error(name,nameReference):
             print 'absolute L1-error of momentum hu(t='+time+') is '+absErrorhu+'%'
         else:
             print 'cannot compare solution at different times'
-	
-def initialize(x,XMAX):
+    
+def initialize(x,y,XMAX):
     # initialize water height with two peaks
     c = 0.01
     h = .5 + .5*np.exp(-(2.*(x/XMAX-.6))**2/(2.*c**2))
     h += np.exp(-(2.*(x/XMAX-.4))**2/(2.*c**2))
+    h2 = np.reshape(h, (h.size, 1))
+    h = h*h2
     # momentum is zero
-    hu = 0.*x
-    return h, hu
+    hu = 0.*x*y
+    hv = 0.*x*y
+    return h, hu, hv
 
 def addGhostCells(var):
-    return np.hstack([0.,var,0.])
+    ghosts = np.zeros((var[0].size, 1)) #ghosts on the sides
+    var = np.hstack([ghosts, var, ghosts])
+    ghosts = np.zeros(var[0].size) #ghosts on top and bottom
+    return np.vstack([ghosts,var,ghosts])
 
 def neumannBoundaryConditions(var):
     var[0] = var[1]
     var[-1] = var[-2]
+    for i in var:
+        i[0] = i[1]
+        i[-1] = i[-2]
+
     return var # var with neumann boundary conditions
 
 def periodicBoundaryConditions(var):
     var[0] = var[-2]
-    var[-1] = var[1] 
+    var[-1] = var[1]
+    for i in var:
+        i[0] = i[-2]
+        i[-1] = i[1]
+
     return var # var with periodic boundary conditions
 
 def calculateDt(dx,maxeig,tsum,TMAX):
-	dt = CFL*dx/maxeig
-	if tsum + dt > TMAX:
-		dt = TMAX - tsum
+    dt = CFL*dx/maxeig
+    if tsum + dt > TMAX:
+        dt = TMAX - tsum
 
-	return dt #stepsize dtdt
+    return dt #stepsize dtdt
 
 def fluxes(h,hu):
     fh,fhu,lambd1,lambd2 = fluxAndLambda(h,hu)
@@ -178,17 +213,17 @@ def fluxes(h,hu):
     return fh, fhu, maxeig
 
 def LxFflux(q, fqp, fqm, lambd):
-	LxF = .5 * (fqm + fqp) - .5 / lambd * (q[1:] - q[:-1])
-	return LxF # Lax-Friedrichs Flux
+    LxF = .5 * (fqm + fqp) - .5 / lambd * (q[1:] - q[:-1])
+    return LxF # Lax-Friedrichs Flux
 
 def fluxAndLambda(h,hu):
-	u = hu/h
-	fh = hu
-	fhu = hu*u + .5*g*h*h
-	lambda1 = u + np.sqrt(g*h)
-	lambda2 = np.absolute(u - np.sqrt(g*h))
-	#fluxes fh and fhu and eigenvalues lambda1, lambda2
-	return fh, fhu, lambda1, lambda2
+    u = hu/h
+    fh = hu
+    fhu = hu*u + .5*g*h*h
+    lambda1 = u + np.sqrt(g*h)
+    lambda2 = u - np.sqrt(g*h)
+    #fluxes fh and fhu and eigenvalues lambda1, lambda2
+    return fh, fhu, lambda1, lambda2
 
 if __name__ == "__main__":
 
@@ -213,5 +248,5 @@ if __name__ == "__main__":
         TMAX = opts.TMAX
 
     shallowWater(n,XMAX,TMAX)
-    error('result.dat', 'result_n1000_TMAX045.dat')
-
+    #error('result.dat', 'result_n1000_TMAX045.dat')
+    
