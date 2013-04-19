@@ -53,12 +53,23 @@ def shallowWater(n,XMAX,TMAX):
         # apply boundary conditions
         h = neumannBoundaryConditions(h)
         hu = neumannBoundaryConditions(hu)
+        hv = neumannBoundaryConditions(hv)
         #h = periodicBoundaryConditions(h)
         #hu = periodicBoundaryConditions(hu)
-        return #code not readt beyond this point
+        return #code not ready beyond this point
         # calculate fluxes at cell interfaces and largest eigenvalue
-        fhp, fhup, eigp = fluxes(h[1:],hu[1:])
-        fhm, fhum, eigm = fluxes(h[:-1],hu[:-1])
+        fhp,fhup,fhvp,eigp, = fluxes(np.delete(h[1:-1],0,1)
+                                    ,np.delete(hu[1:-1],0,1)
+                                    ,np.delete(hv[1:-1],0,1))
+        fhm,fhum,fhvm,eigm = fluxes(np.delete(h[1:-1],0,1)
+                                    ,np.delete(hu[1:-1],-1,1)
+                                    ,np.delete(hv[1:-1],-1,1))
+        fho,fhuo,fhvo,eigo = fluxes(np.transpose(h[:-1])[1:-1] #mindfuck
+                                    ,np.transpose(hu[:-1])[1:-1] #mindfuck
+                                    ,np.transpose(hv[:-1])[1:-1] #mindfuck
+        fhn,fhun,fhvn,eign = fluxes(np.transpose(h[1:])[1:-1] #mindfuck
+                                    ,np.transpose(hu[1:])[1:-1] #mindfuck
+                                    ,np.transpose(hv[1:])[1:-1] #mindfuck
         maxeig = np.maximum(eigp, eigm)# maximum of eigp and eigm
 
         # calculate time step according to CFL-condition
@@ -208,9 +219,10 @@ def calculateDt(dx,maxeig,tsum,TMAX):
     return dt #stepsize dtdt
 
 def fluxes(h,hu):
-    fh,fhu,lambd1,lambd2 = fluxAndLambda(h,hu)
-    maxeig = np.maximum(np.amax(lambd1), np.amax(lambd2))# calculate largest eigenvalue
-    return fh, fhu, maxeig
+    fh,fhu,fhv,lambd1,lambd2,lambd3,lambd4 = fluxAndLambda(h,hu,hv)
+    maxeig1 = np.maximum(np.amax(lambd1), np.amax(lambd2))
+    maxeig2 = np.maximum(np.amax(lambd3), np.amax(lambd4))# calculate largest eigenvalue
+    return fh, fhu, np.maximum(maxeig1, maxeig2)
 
 def LxFflux(q, fqp, fqm, lambd):
     LxF = .5 * (fqm + fqp) - .5 / lambd * (q[1:] - q[:-1])
@@ -218,10 +230,13 @@ def LxFflux(q, fqp, fqm, lambd):
 
 def fluxAndLambda(h,hu):
     u = hu/h
+    v = hv/h
     fh = hu
     fhu = hu*u + .5*g*h*h
     lambda1 = u + np.sqrt(g*h)
-    lambda2 = u - np.sqrt(g*h)
+    lambda2 = np.abs(u - np.sqrt(g*h))
+    lambda3 = v + np.sqrt(g*h)
+    lambda4 = np.abs(v - np.sqrt(g*h))
     #fluxes fh and fhu and eigenvalues lambda1, lambda2
     return fh, fhu, lambda1, lambda2
 
