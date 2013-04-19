@@ -56,7 +56,7 @@ def shallowWater(n,XMAX,TMAX):
         hv = neumannBoundaryConditions(hv)
         #h = periodicBoundaryConditions(h)
         #hu = periodicBoundaryConditions(hu)
-        return #code not ready beyond this point
+
         # calculate fluxes at cell interfaces and largest eigenvalue
         fhp,fhup,fhvp,eigp, = fluxes(np.delete(h[1:-1],0,1)
                                     ,np.delete(hu[1:-1],0,1)
@@ -70,8 +70,8 @@ def shallowWater(n,XMAX,TMAX):
         fhn,fhun,fhvn,eign = fluxes(np.transpose(h[1:])[1:-1] #mindfuck
                                     ,np.transpose(hu[1:])[1:-1] #mindfuck
                                     ,np.transpose(hv[1:])[1:-1] #mindfuck
-        maxeig = np.maximum(eigp, eigm)# maximum of eigp and eigm
-
+        maxeig = np.maximum(np.maximum(eigo,eign),np.maximum(eigp,eigm))# maximum of eigp and eigm
+        #quadratic area dx=dy, simplifies dt
         # calculate time step according to CFL-condition
         dt = calculateDt(dx,maxeig,tsum,TMAX)
         # advance time
@@ -79,14 +79,16 @@ def shallowWater(n,XMAX,TMAX):
         lambd = 1.*dt/dx
 
         # R = Lax-Friedrichs Flux
-        Rh = LxFflux(h,fhp, fhm, lambd)
-        Rhu = LxFflux(hu, fhup, fhum, lambd)
+        Rh = LxFflux(h,fhp, fhm, fho, fhn, lambd)
+        Rhu = LxFflux(hu, fhup, fhum, fhuo, fhun, lambd)
+        Rhv = LxFflux(hv, fhvp, fhvm, fhvo, fhvn, lambd)
 
         h[1:-1] -= lambd * (Rh[1:] - Rh[:-1])# update cell average (tip: depends on Rh and lambda)
         hu[1:-1] -= lambd * (Rhu[1:] - Rhu[:-1])# update cell average (tip: depends on Rhu and lambda)
         plotVars(x,h,hu,tsum)
 
     #end while (time loop)
+    plot3d(mX,mY,h,n)
     #saveToFile(h,tsum,n,'result.dat','a')
     #saveToFile(hu,tsum,n,'result.dat','a')
 
@@ -212,33 +214,35 @@ def periodicBoundaryConditions(var):
     return var # var with periodic boundary conditions
 
 def calculateDt(dx,maxeig,tsum,TMAX):
-    dt = CFL*dx/maxeig
+    dt = CFL*dx/maxeig #simplified by having quadratic area (n*n -> dx=dy)
     if tsum + dt > TMAX:
         dt = TMAX - tsum
 
     return dt #stepsize dtdt
 
-def fluxes(h,hu):
+def fluxes(h,hu,hv):
     fh,fhu,fhv,lambd1,lambd2,lambd3,lambd4 = fluxAndLambda(h,hu,hv)
     maxeig1 = np.maximum(np.amax(lambd1), np.amax(lambd2))
     maxeig2 = np.maximum(np.amax(lambd3), np.amax(lambd4))# calculate largest eigenvalue
-    return fh, fhu, np.maximum(maxeig1, maxeig2)
+    return fh,fhu,fhv,np.maximum(maxeig1, maxeig2)
 
-def LxFflux(q, fqp, fqm, lambd):
-    LxF = .5 * (fqm + fqp) - .5 / lambd * (q[1:] - q[:-1])
+def LxFflux(q, fqp, fqm, fqo, fqn, lambd):
+    LxF = .25*(fqm+fqp+fqo+fqn)-.5/lambd*(np.delete(q[1:-1],0,1)-np.delete(q[1:-1],-1,1))
+                               -.5/lambd*(np.delete(q[1:],(0,grid[0].size-1),1)-np.delete(q[1:-1],(0,grid[0].size-1),1))
     return LxF # Lax-Friedrichs Flux
 
-def fluxAndLambda(h,hu):
+def fluxAndLambda(h,hu,hv):
     u = hu/h
     v = hv/h
-    fh = hu
-    fhu = hu*u + .5*g*h*h
+    fh = hu+hv
+    fhu = hu*u + .5*g*h*h + hu*v
+    fhv = hv*u + (hv*v+.5*g*h*h)
     lambda1 = u + np.sqrt(g*h)
     lambda2 = np.abs(u - np.sqrt(g*h))
     lambda3 = v + np.sqrt(g*h)
     lambda4 = np.abs(v - np.sqrt(g*h))
     #fluxes fh and fhu and eigenvalues lambda1, lambda2
-    return fh, fhu, lambda1, lambda2
+    return fh,fhu,fhv,lambda1,lambda2,lambda3,lambda4
 
 if __name__ == "__main__":
 
