@@ -66,10 +66,10 @@ def shallowWater(n,XMAX,TMAX):
                                     ,np.delete(hv[1:-1],-1,1))
         fho,fhuo,fhvo,eigo = fluxes(np.transpose(h[:-1])[1:-1] #mindfuck
                                     ,np.transpose(hu[:-1])[1:-1] #mindfuck
-                                    ,np.transpose(hv[:-1])[1:-1] #mindfuck
+                                    ,np.transpose(hv[:-1])[1:-1]) #mindfuck
         fhn,fhun,fhvn,eign = fluxes(np.transpose(h[1:])[1:-1] #mindfuck
                                     ,np.transpose(hu[1:])[1:-1] #mindfuck
-                                    ,np.transpose(hv[1:])[1:-1] #mindfuck
+                                    ,np.transpose(hv[1:])[1:-1]) #mindfuck
         maxeig = np.maximum(np.maximum(eigo,eign),np.maximum(eigp,eigm))# maximum of eigp and eigm
         #quadratic area dx=dy, simplifies dt
         # calculate time step according to CFL-condition
@@ -228,7 +228,7 @@ def fluxes(h,hu,hv):
 
 def LxFflux(q, fqp, fqm, fqo, fqn, lambd):
     LxF = .25*(fqm+fqp+fqo+fqn)-.5/lambd*(np.delete(q[1:-1],0,1)-np.delete(q[1:-1],-1,1))
-                               -.5/lambd*(np.delete(q[1:],(0,grid[0].size-1),1)-np.delete(q[1:-1],(0,grid[0].size-1),1))
+    -.5/lambd*(np.delete(q[1:],(0,grid[0].size-1),1)-np.delete(q[1:-1],(0,grid[0].size-1),1))
     return LxF # Lax-Friedrichs Flux
 
 def fluxAndLambda(h,hu,hv):
