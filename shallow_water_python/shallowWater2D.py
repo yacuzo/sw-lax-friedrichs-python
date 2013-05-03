@@ -42,7 +42,6 @@ def shallowWater(n,XMAX,TMAX):
     #plotVars(x,h,hu,0)
     mX, mY = init3dPlot(x,y,XMAX,dx)
     plot3d(mX,mY,h,n)
-    return
     # time starts at zero
     tsum=0.
     #saveToFile(h,tsum,n,'result.dat','w')
@@ -58,19 +57,11 @@ def shallowWater(n,XMAX,TMAX):
         #hu = periodicBoundaryConditions(hu)
 
         # calculate fluxes at cell interfaces and largest eigenvalue
-        fhp,fhup,fhvp,eigp, = fluxes(np.delete(h[1:-1],0,1)
-                                    ,np.delete(hu[1:-1],0,1)
-                                    ,np.delete(hv[1:-1],0,1))
-        fhm,fhum,fhvm,eigm = fluxes(np.delete(h[1:-1],0,1)
-                                    ,np.delete(hu[1:-1],-1,1)
-                                    ,np.delete(hv[1:-1],-1,1))
-        fho,fhuo,fhvo,eigo = fluxes(np.transpose(h[:-1])[1:-1] #mindfuck
-                                    ,np.transpose(hu[:-1])[1:-1] #mindfuck
-                                    ,np.transpose(hv[:-1])[1:-1]) #mindfuck
-        fhn,fhun,fhvn,eign = fluxes(np.transpose(h[1:])[1:-1] #mindfuck
-                                    ,np.transpose(hu[1:])[1:-1] #mindfuck
-                                    ,np.transpose(hv[1:])[1:-1]) #mindfuck
-        maxeig = np.maximum(np.maximum(eigo,eign),np.maximum(eigp,eigm))# maximum of eigp and eigm
+        fhp,fhup,fhvp,eigfp, = fluxesF(h[1:-1,1:],hu[1:-1,1:],hv[1:-1,1:])
+        fhm,fhum,fhvm,eigfm = fluxesF(h[1:-1,:-1],hu[1:-1,:-1],hv[1:-1,:-1])
+        ghp,ghup,ghvp,eiggp = fluxesG(h[:-1,1:-1],hu[:-1,1:-1],hv[:-1,1:-1])
+        ghm,ghum,ghvm,eiggm = fluxesG(h[1:,1:-1],hu[1:,1:-1],hv[1:,1:-1])
+        maxeig = np.maximum(np.maximum(eigfp,eigfm),np.maximum(eiggm,eiggp))# maximum of eigp and eigm
         #quadratic area dx=dy, simplifies dt
         # calculate time step according to CFL-condition
         dt = calculateDt(dx,maxeig,tsum,TMAX)
@@ -79,13 +70,13 @@ def shallowWater(n,XMAX,TMAX):
         lambd = 1.*dt/dx
 
         # R = Lax-Friedrichs Flux
-        Rh = LxFflux(h,fhp, fhm, fho, fhn, lambd)
-        Rhu = LxFflux(hu, fhup, fhum, fhuo, fhun, lambd)
-        Rhv = LxFflux(hv, fhvp, fhvm, fhvo, fhvn, lambd)
-
-        h[1:-1] -= lambd * (Rh[1:] - Rh[:-1])# update cell average (tip: depends on Rh and lambda)
-        hu[1:-1] -= lambd * (Rhu[1:] - Rhu[:-1])# update cell average (tip: depends on Rhu and lambda)
-        plotVars(x,h,hu,tsum)
+        Rh = LxFflux(h,fhp, fhm, ghp, ghm, lambd)
+        Rhu = LxFflux(hu, fhup, fhum, ghup, ghum, lambd)
+        Rhv = LxFflux(hv, ghvp, ghvm, ghvp, ghvm, lambd)
+        
+        h[1:-1,1:-1] -= lambd*((Rh[1:-1,:-1]-Rh[1:-1,1:])+(Rh[:-1,1:-1]-Rh[1:,1:-1]))# update cell average (tip: depends on Rh and lambda)
+        hu[1:-1,1:-1] -= lambd*((Rhu[1:-1,:-1]-Rhu[1:-1,1:])+(Rhu[:-1,1:-1]-Rhu[1:,1:-1]))# update cell average (tip: depends on Rhu and lambda)
+        hv[1:-1,1:-1] -= lambd*((Rhv[1:-1,:-1]-Rhv[1:-1,1:])+(Rhv[:-1,1:-1]-Rhv[1:,1:-1]))
 
     #end while (time loop)
     plot3d(mX,mY,h,n)
@@ -220,29 +211,38 @@ def calculateDt(dx,maxeig,tsum,TMAX):
 
     return dt #stepsize dtdt
 
-def fluxes(h,hu,hv):
-    fh,fhu,fhv,lambd1,lambd2,lambd3,lambd4 = fluxAndLambda(h,hu,hv)
+def fluxesF(h,hu,hv):
+    fh,fhu,fhv,lambd1,lambd2 = fluxAndLambdaF(h,hu,hv)
     maxeig1 = np.maximum(np.amax(lambd1), np.amax(lambd2))
-    maxeig2 = np.maximum(np.amax(lambd3), np.amax(lambd4))# calculate largest eigenvalue
-    return fh,fhu,fhv,np.maximum(maxeig1, maxeig2)
+    return fh,fhu,fhv,maxeig1
+    
+def fluxesG(h,hu,hv):
+    #gh,ghu,ghv,lambd1,lambd2 = fluxAndLambdaG(h,hu,hv)
+    #maxeig1 = np.maximum(np.amax(lambd1), np.amax(lambd2))
+    return h,hu,hv,.0
 
 def LxFflux(q, fqp, fqm, fqo, fqn, lambd):
     LxF = .25*(fqm+fqp+fqo+fqn)-.5/lambd*(np.delete(q[1:-1],0,1)-np.delete(q[1:-1],-1,1))
     -.5/lambd*(np.delete(q[1:],(0,grid[0].size-1),1)-np.delete(q[1:-1],(0,grid[0].size-1),1))
     return LxF # Lax-Friedrichs Flux
 
-def fluxAndLambda(h,hu,hv):
+def fluxAndLambdaF(h,hu,hv):
     u = hu/h
-    v = hv/h
-    fh = hu+hv
-    fhu = hu*u + .5*g*h*h + hu*v
-    fhv = hv*u + (hv*v+.5*g*h*h)
+    fh = hu
+    fhu = hu*u + .5*g*h*h
+    fhv = hv*u
     lambda1 = u + np.sqrt(g*h)
     lambda2 = np.abs(u - np.sqrt(g*h))
-    lambda3 = v + np.sqrt(g*h)
-    lambda4 = np.abs(v - np.sqrt(g*h))
-    #fluxes fh and fhu and eigenvalues lambda1, lambda2
-    return fh,fhu,fhv,lambda1,lambda2,lambda3,lambda4
+    return fh,fhu,fhv,lambda1,lambda2
+
+def fluxAndLambdaG(h,hu,hv):
+    v = hv/h
+    gh = hv
+    ghu = hu*v
+    ghv = hv*v + .5*g*h*h
+    lambda1 = v + np.sqrt(g*h)
+    lambda2 = np.abs(v - np.sqrt(g*h))
+    return gh,ghu,ghv,lambda1,lambda2
 
 if __name__ == "__main__":
 
