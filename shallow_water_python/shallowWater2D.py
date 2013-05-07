@@ -1,7 +1,8 @@
-from mpl_toolkits.mplot3d import axes3d
 import numpy as np
 import pylab as pl
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import time
 
 ######################################################
 ## - usage from command line:                        #
@@ -38,10 +39,8 @@ def shallowWater(n,XMAX,TMAX):
     hu = addGhostCells(hu)
     hv = addGhostCells(hv)
     # plot initial conditions with interactive mode on
-    #pl.ion()
-    #plotVars(x,h,hu,0)
-    mX, mY = init3dPlot(x,y,XMAX,dx)
-    plot3d(mX,mY,h,n)
+    plt.ion()
+    plot2d(h[1:-1,1:-1],n,0)
     # time starts at zero
     tsum=0.
     #saveToFile(h,tsum,n,'result.dat','w')
@@ -70,49 +69,36 @@ def shallowWater(n,XMAX,TMAX):
         lambd = 1.*dt/dx
 
         # R = Lax-Friedrichs Flux
-        Rh = LxFflux(h,fhp, fhm, ghp, ghm, lambd)
-        Rhu = LxFflux(hu, fhup, fhum, ghup, ghum, lambd)
-        Rhv = LxFflux(hv, ghvp, ghvm, ghvp, ghvm, lambd)
+        Rhf = LxFflux(h, fhp, fhm, lambd)
+        Rhg = LxGflux(h, ghp, ghm, lambd)
+        Rhuf = LxFflux(hu, fhup, fhum, lambd)
+        Rhug = LxGflux(hu, ghup, ghum, lambd)
+        Rhvf = LxFflux(hv, fhvp, fhvm, lambd)
+        Rhvg = LxGflux(hv, ghvp, ghvm, lambd)
         
-        h[1:-1,1:-1] -= lambd*((Rh[1:-1,:-1]-Rh[1:-1,1:])+(Rh[:-1,1:-1]-Rh[1:,1:-1]))# update cell average (tip: depends on Rh and lambda)
-        hu[1:-1,1:-1] -= lambd*((Rhu[1:-1,:-1]-Rhu[1:-1,1:])+(Rhu[:-1,1:-1]-Rhu[1:,1:-1]))# update cell average (tip: depends on Rhu and lambda)
-        hv[1:-1,1:-1] -= lambd*((Rhv[1:-1,:-1]-Rhv[1:-1,1:])+(Rhv[:-1,1:-1]-Rhv[1:,1:-1]))
+        h[1:-1,1:-1] -= lambd*((Rhf[0:,1:]-Rhf[0:,:-1])+(Rhg[1:]-Rhg[:-1]))# update cell average (tip: depends on Rh and lambda)
+        hu[1:-1,1:-1] -= lambd*((Rhuf[0:,1:]-Rhuf[0:,:-1])+(Rhug[1:]-Rhug[:-1]))# update cell average (tip: depends on Rhu and lambda)
+        hv[1:-1,1:-1] -= lambd*((Rhvf[0:,1:]-Rhvf[0:,:-1])+(Rhvg[1:]-Rhvg[:-1]))
+        plot2d(h[1:-1,1:-1],n,tsum) 
 
+    plt.ioff()
+    plot2d(h[1:-1,1:-1],n,tsum, block=True)    
     #end while (time loop)
-    plot3d(mX,mY,h,n)
+    #plot2d(x,h[1:-1,1:-1],n, tsum)
     #saveToFile(h,tsum,n,'result.dat','a')
     #saveToFile(hu,tsum,n,'result.dat','a')
 
-def plotVars(x,h,hu,time,clear=True):
+def plot2d(h,n,time,block=False):
     time = '{0:.5f}'.format(time)
-    pl.figure(1)
-    if clear:
-        pl.clf()
-    pl.subplot(211)
-    pl.title('water height h(t='+time+')')
-    pl.plot(x,h[1:-1],label='u')
-    pl.xlabel('x')
-    pl.legend()
-    pl.subplot(212)
-    pl.title('momentum hu(t='+time+')')
-    pl.plot(x,hu[1:-1],label='hu')
-    pl.xlabel('x')
-    pl.legend()
-    pl.draw()
-
-def init3dPlot(x,y,XMAX,dx):
-    xplot = np.hstack([-dx/2, x, XMAX + dx/2])
-    yplot = np.vstack([[-dx/2], y, [XMAX + dx/2]])
-    mX, mY = np.meshgrid(xplot,yplot)
-    return mX, mY
-
-def plot3d(mX,mY,h,n):
-    fig = plt.figure()
-    plt.cla();
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot_wireframe(mX, mY, h, rstride=n/25, cstride=n/25)
-    ax.view_init(50, -125)
-    plt.show()
+    plt.figure(1)
+    plt.clf()
+    im = plt.imshow(h, interpolation='bilinear', origin='lower', cmap=cm.gray, extent=(0,n,0,n))
+    plt.title('water height h(t='+time+')')
+    plt.colorbar(im,orientation='horizontal', shrink=0.8)
+    if(block):
+        plt.show()
+    else:
+        plt.draw()
 
 def saveToFile(v,t,n,name,mode):
 # mode 'w' (over)writes, 'a' appends
@@ -213,18 +199,21 @@ def calculateDt(dx,maxeig,tsum,TMAX):
 
 def fluxesF(h,hu,hv):
     fh,fhu,fhv,lambd1,lambd2 = fluxAndLambdaF(h,hu,hv)
-    maxeig1 = np.maximum(np.amax(lambd1), np.amax(lambd2))
-    return fh,fhu,fhv,maxeig1
+    maxeig = np.maximum(np.amax(lambd1), np.amax(lambd2))
+    return fh,fhu,fhv,maxeig
     
 def fluxesG(h,hu,hv):
-    #gh,ghu,ghv,lambd1,lambd2 = fluxAndLambdaG(h,hu,hv)
-    #maxeig1 = np.maximum(np.amax(lambd1), np.amax(lambd2))
-    return h,hu,hv,.0
+    gh,ghu,ghv,lambd1,lambd2 = fluxAndLambdaG(h,hu,hv)
+    maxeig = np.maximum(np.amax(lambd1), np.amax(lambd2))
+    return gh,ghu,ghv,maxeig
 
-def LxFflux(q, fqp, fqm, fqo, fqn, lambd):
-    LxF = .25*(fqm+fqp+fqo+fqn)-.5/lambd*(np.delete(q[1:-1],0,1)-np.delete(q[1:-1],-1,1))
-    -.5/lambd*(np.delete(q[1:],(0,grid[0].size-1),1)-np.delete(q[1:-1],(0,grid[0].size-1),1))
-    return LxF # Lax-Friedrichs Flux
+def LxFflux(q, fqp, fqm, lambd):
+	LxF = .5 * (fqm + fqp) - .5 / lambd * (q[1:-1,1:] - q[1:-1,:-1])
+	return LxF # Lax-Friedrichs Flux
+    
+def LxGflux(q, gqp, gqm, lambd):
+	LxF = .5 * (gqm + gqp) - .5 / lambd * (q[1:,1:-1] - q[:-1,1:-1])
+	return LxF # Lax-Friedrichs Flux
 
 def fluxAndLambdaF(h,hu,hv):
     u = hu/h
