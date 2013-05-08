@@ -16,10 +16,11 @@ import time
 ######################################################
 
 # Courant Friedrichs Levy condition (CFL) is a necessary condition for convergence
-CFL = .99# set so it fulfilles CFL condition, experiment with it
+CFL = .25# set so it fulfilles CFL condition, experiment with it
 # gravitational constant
 g = 9.80665
-
+#For displaying the graph
+im = .0
 ## shallow water solver 1 dimension
 def shallowWater(n,XMAX,TMAX):
     
@@ -40,7 +41,7 @@ def shallowWater(n,XMAX,TMAX):
     hv = addGhostCells(hv)
     # plot initial conditions with interactive mode on
     plt.ion()
-    plot2d(h[1:-1,1:-1],n,0)
+    plot2d(h[1:-1,1:-1],n,0,redraw=False)
     # time starts at zero
     tsum=0.
     #saveToFile(h,tsum,n,'result.dat','w')
@@ -56,10 +57,11 @@ def shallowWater(n,XMAX,TMAX):
         #hu = periodicBoundaryConditions(hu)
 
         # calculate fluxes at cell interfaces and largest eigenvalue
+        # indices: [top:bottom,left:right]
         fhp,fhup,fhvp,eigfp, = fluxesF(h[1:-1,1:],hu[1:-1,1:],hv[1:-1,1:])
         fhm,fhum,fhvm,eigfm = fluxesF(h[1:-1,:-1],hu[1:-1,:-1],hv[1:-1,:-1])
-        ghp,ghup,ghvp,eiggp = fluxesG(h[:-1,1:-1],hu[:-1,1:-1],hv[:-1,1:-1])
-        ghm,ghum,ghvm,eiggm = fluxesG(h[1:,1:-1],hu[1:,1:-1],hv[1:,1:-1])
+        ghp,ghup,ghvp,eiggp = fluxesG(h[1:,1:-1],hu[1:,1:-1],hv[1:,1:-1])
+        ghm,ghum,ghvm,eiggm = fluxesG(h[:-1,1:-1],hu[:-1,1:-1],hv[:-1,1:-1])
         maxeig = np.maximum(np.maximum(eigfp,eigfm),np.maximum(eiggm,eiggp))# maximum of eigp and eigm
         #quadratic area dx=dy, simplifies dt
         # calculate time step according to CFL-condition
@@ -67,7 +69,6 @@ def shallowWater(n,XMAX,TMAX):
         # advance time
         tsum = tsum+dt
         lambd = 1.*dt/dx
-
         # R = Lax-Friedrichs Flux
         Rhf = LxFflux(h, fhp, fhm, lambd)
         Rhg = LxGflux(h, ghp, ghm, lambd)
@@ -79,26 +80,32 @@ def shallowWater(n,XMAX,TMAX):
         h[1:-1,1:-1] -= lambd*((Rhf[0:,1:]-Rhf[0:,:-1])+(Rhg[1:]-Rhg[:-1]))# update cell average (tip: depends on Rh and lambda)
         hu[1:-1,1:-1] -= lambd*((Rhuf[0:,1:]-Rhuf[0:,:-1])+(Rhug[1:]-Rhug[:-1]))# update cell average (tip: depends on Rhu and lambda)
         hv[1:-1,1:-1] -= lambd*((Rhvf[0:,1:]-Rhvf[0:,:-1])+(Rhvg[1:]-Rhvg[:-1]))
+        #np.savetxt('test'+tsum.astype('|S6')+'.txt',h, delimiter=';', fmt='%7.4f')
+        print np.sum(h)
         plot2d(h[1:-1,1:-1],n,tsum) 
 
     plt.ioff()
-    plot2d(h[1:-1,1:-1],n,tsum, block=True)    
+    plot2d(h[1:-1,1:-1],n,tsum, block=True, redraw=False)    
     #end while (time loop)
     #plot2d(x,h[1:-1,1:-1],n, tsum)
     #saveToFile(h,tsum,n,'result.dat','a')
     #saveToFile(hu,tsum,n,'result.dat','a')
 
-def plot2d(h,n,time,block=False):
+def plot2d(h,n,time,block=False,redraw=True):
+    global im
     time = '{0:.5f}'.format(time)
-    plt.figure(1)
-    plt.clf()
-    im = plt.imshow(h, interpolation='bilinear', origin='lower', cmap=cm.gray, extent=(0,n,0,n))
-    plt.title('water height h(t='+time+')')
-    plt.colorbar(im,orientation='horizontal', shrink=0.8)
-    if(block):
-        plt.show()
-    else:
+    if (redraw):
+        im.set_data(h)
+        plt.title('water height h(t='+time+')')
         plt.draw()
+    else:
+        plt.figure(1)
+        plt.clf()
+        im = plt.imshow(h, interpolation='bilinear', origin='lower', cmap=cm.gray, extent=(0,n,0,n))
+        plt.title('water height h(t='+time+')')
+        plt.colorbar(im,orientation='horizontal', shrink=0.8)
+        if(block):
+            plt.show()
 
 def saveToFile(v,t,n,name,mode):
 # mode 'w' (over)writes, 'a' appends
