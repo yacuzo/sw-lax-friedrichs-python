@@ -3,6 +3,7 @@ import pylab as pl
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import time
+import math as m
 
 ######################################################
 ## - usage from command line:                        #
@@ -16,7 +17,7 @@ import time
 ######################################################
 
 # Courant Friedrichs Levy condition (CFL) is a necessary condition for convergence
-CFL = .25# set so it fulfilles CFL condition, experiment with it
+CFL = .99# set so it fulfilles CFL condition, experiment with it
 # gravitational constant
 g = 9.80665
 #For displaying the graph
@@ -77,9 +78,9 @@ def shallowWater(n,XMAX,TMAX):
         Rhvf = LxFflux(hv, fhvp, fhvm, lambd)
         Rhvg = LxGflux(hv, ghvp, ghvm, lambd)
         
-        h[1:-1,1:-1] -= lambd*((Rhf[0:,1:]-Rhf[0:,:-1])+(Rhg[1:]-Rhg[:-1]))# update cell average (tip: depends on Rh and lambda)
-        hu[1:-1,1:-1] -= lambd*((Rhuf[0:,1:]-Rhuf[0:,:-1])+(Rhug[1:]-Rhug[:-1]))# update cell average (tip: depends on Rhu and lambda)
-        hv[1:-1,1:-1] -= lambd*((Rhvf[0:,1:]-Rhvf[0:,:-1])+(Rhvg[1:]-Rhvg[:-1]))
+        h[1:-1,1:-1] -= lambd*.5*((Rhf[:,:-1]-Rhf[:,1:])+(Rhg[:-1]-Rhg[1:]))# update cell average (tip: depends on Rh and lambda)
+        hu[1:-1,1:-1] -= lambd*.5*((Rhuf[:,:-1]-Rhuf[:,1:])+(Rhug[:-1]-Rhug[1:]))# update cell average (tip: depends on Rhu and lambda)
+        hv[1:-1,1:-1] -= lambd*.5*((Rhvf[:,:-1]-Rhvf[:,1:])+(Rhvg[:-1]-Rhvg[1:]))
         #np.savetxt('test'+tsum.astype('|S6')+'.txt',h, delimiter=';', fmt='%7.4f')
         print np.sum(h)
         plot2d(h[1:-1,1:-1],n,tsum) 
@@ -171,6 +172,17 @@ def initialize(x,y,XMAX):
     # momentum is zero
     hu = 0.*x*y
     hv = 0.*x*y
+    
+    c = 0.3 # The center
+    r = 0.1 # The radius
+    for i in range(0, len(h) / 2):
+            for j in range(0, len(h)):
+                h[i][j] = m.exp( -((x[j] - c)**2 + (y[i] - c)**2) / (2*r**2) ) * .5  
+                
+    c = 0.7
+    for i in range(len(h) / 2, len(h)):
+        for j in range(0, len(h)):
+            h[i][j] = m.exp( -((x[j] - c)**2 + (y[i] - c)**2) / (2*r**2) ) * .75
     return h, hu, hv
 
 def addGhostCells(var):
@@ -215,11 +227,11 @@ def fluxesG(h,hu,hv):
     return gh,ghu,ghv,maxeig
 
 def LxFflux(q, fqp, fqm, lambd):
-	LxF = .5 * (fqm + fqp) - .5 / lambd * (q[1:-1,1:] - q[1:-1,:-1])
+	LxF = .5 * ((fqm + fqp) - .5 / lambd * (q[1:-1,:-1] - q[1:-1,1:]))
 	return LxF # Lax-Friedrichs Flux
     
 def LxGflux(q, gqp, gqm, lambd):
-	LxF = .5 * (gqm + gqp) - .5 / lambd * (q[1:,1:-1] - q[:-1,1:-1])
+	LxF = .5 * ((gqm + gqp) - .5 / lambd * (q[:-1,1:-1] - q[1:,1:-1]))
 	return LxF # Lax-Friedrichs Flux
 
 def fluxAndLambdaF(h,hu,hv):
