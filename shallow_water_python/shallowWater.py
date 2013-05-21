@@ -33,13 +33,14 @@ def shallowWater(n,XMAX,TMAX):
     h = addGhostCells(h)
     hu = addGhostCells(hu)
     # plot initial conditions with interactive mode on
-    pl.ion()
+    
     plotVars(x,h,hu,0)
-
+    pl.show()
+    pl.ion()
     # time starts at zero
     tsum=0.
-    saveToFile(h,tsum,n,'result.dat','w')
-    saveToFile(hu,tsum,n,'result.dat','a')
+    #saveToFile(h,tsum,n,'result.dat','w')
+    #saveToFile(hu,tsum,n,'result.dat','a')
     # loop over time
     while tsum<TMAX:
 
@@ -66,11 +67,14 @@ def shallowWater(n,XMAX,TMAX):
 
         h[1:-1] -= lambd * (Rh[1:] - Rh[:-1])# update cell average (tip: depends on Rh and lambda)
         hu[1:-1] -= lambd * (Rhu[1:] - Rhu[:-1])# update cell average (tip: depends on Rhu and lambda)
-    plotVars(x,h,hu,tsum)
+        plotVars(x,h,hu,tsum)
 
     #end while (time loop)
-    saveToFile(h,tsum,n,'result.dat','a')
-    saveToFile(hu,tsum,n,'result.dat','a')
+    pl.ioff()
+    plotVars(x,h,hu,tsum)
+    pl.show()
+    #saveToFile(h,tsum,n,'result.dat','a')
+    #saveToFile(hu,tsum,n,'result.dat','a')
 
 def plotVars(x,h,hu,time,clear=True):
     time = '{0:.5f}'.format(time)
@@ -213,5 +217,5 @@ if __name__ == "__main__":
         TMAX = opts.TMAX
 
     shallowWater(n,XMAX,TMAX)
-    error('result.dat', 'result_n1000_TMAX045.dat')
+    #error('result.dat', 'result_n1000_TMAX045.dat')
 
